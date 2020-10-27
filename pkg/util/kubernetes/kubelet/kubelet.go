@@ -260,6 +260,14 @@ func (ku *KubeUtil) GetPodForContainerID(containerID string) (*Pod, error) {
 }
 
 func (ku *KubeUtil) searchPodForContainerID(podList []*Pod, containerID string) (*Pod, error) {
+	var currentPod *Pod
+	defer func() {
+		if r := recover(); r != nil {
+			log.Critical("Recovered in searchPodForContainerID", r, currentPod)
+			log.Flush()
+		}
+	}()
+
 	if containerID == "" {
 		return nil, fmt.Errorf("containerID is empty")
 	}
@@ -267,11 +275,18 @@ func (ku *KubeUtil) searchPodForContainerID(podList []*Pod, containerID string) 
 	// We will match only on the id itself, without runtime identifier, it should be quite unlikely on a Kube node
 	// to have a container in the runtime used by Kube to match a container in another runtime...
 	strippedContainerID := containers.ContainerIDForEntity(containerID)
-	for _, pod := range podList {
-		for _, container := range pod.Status.GetAllContainers() {
-			if containers.ContainerIDForEntity(container.ID) == strippedContainerID {
-				return pod, nil
+	for i, pod := range podList {
+		currentPod = pod
+		if pod != nil {
+			allContainers := pod.Status.GetAllContainers()
+
+			for _, container := range allContainers {
+				if containers.ContainerIDForEntity(container.ID) == strippedContainerID {
+					return pod, nil
+				}
 			}
+		} else {
+			log.Warnf("Found a nil pod in Kubelet - pos: %d - podList: %v", i, podList)
 		}
 	}
 	return nil, errors.NewNotFound(fmt.Sprintf("container %s in PodList", containerID))
