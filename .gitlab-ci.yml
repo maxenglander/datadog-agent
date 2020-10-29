@@ -2660,6 +2660,10 @@ send_pkg_size-a7:
     - TARGET_TAG=$IMAGE:v$CI_PIPELINE_ID-${CI_COMMIT_SHA:0:7}$TAG_SUFFIX-$ARCH
     # Pull base image(s) with content trust enabled
     - python3 -m pip install -r requirements.txt
+    # DockerHub login event for build to limit rate limit when pulling base images
+    - DOCKER_REGISTRY_LOGIN=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.$DOCKER_REGISTRY_LOGIN_SSM_KEY --with-decryption --query "Parameter.Value" --out text)
+    - aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.$DOCKER_REGISTRY_PWD_SSM_KEY --with-decryption --query "Parameter.Value" --out text | docker login --username "$DOCKER_REGISTRY_LOGIN" --password-stdin "$DOCKER_REGISTRY_URL"
+    # Pull base images
     - inv -e docker.pull-base-images --signed-pull $BUILD_CONTEXT/$ARCH/Dockerfile
     # Build testing stage if provided
     - test "$TESTING_ARG" && docker build --file $BUILD_CONTEXT/$ARCH/Dockerfile $TESTING_ARG $BUILD_CONTEXT
